@@ -1653,6 +1653,7 @@ fun SettingsScreen(
     onClearTranslationDiagnostics: () -> Unit = {},
     settingsViewModel: io.github.ztfang.eye.viewmodel.SettingsViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     // 界面语言选择弹窗
     var showLanguagePicker by remember { mutableStateOf(false) }
     // 翻译模型诊断弹窗
