@@ -58,8 +58,10 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
+          # 注意:build.gradle.kts 把所有 variant 的输出文件名统一改成了 EyeOpener.apk,
+          # 故此处用通配符而非 app-debug.apk
           name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
       - name: Upload Release APK
