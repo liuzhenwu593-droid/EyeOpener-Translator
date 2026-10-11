@@ -19,6 +19,7 @@ kotlin {
 //
 // 在仓库根目录放一份 keystore.properties（已 gitignore）即可启用 release 签名：
 //   storeFile=eye-release.jks        # 相对仓库根目录，或绝对路径
+//   storeType=PKCS12                 # 可选；.p12/.pfx 建议显式指定
 //   storePassword=...
 //   keyAlias=eye
 //   keyPassword=...
@@ -32,6 +33,7 @@ val keystoreProperties = Properties().apply {
 }
 // 取值提到 DSL 之外：signingConfig 作用域里的 get 会解析到 ExtensionContainer.get
 val releaseStoreFile = keystoreProperties.getProperty("storeFile")
+val releaseStoreType = keystoreProperties.getProperty("storeType")
 val releaseStorePassword = keystoreProperties.getProperty("storePassword")
 val releaseKeyAlias = keystoreProperties.getProperty("keyAlias")
 val releaseKeyPassword = keystoreProperties.getProperty("keyPassword")
@@ -61,6 +63,7 @@ android {
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
+                releaseStoreType?.let { storeType = it }
             }
         }
     }

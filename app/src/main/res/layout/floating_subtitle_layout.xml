@@ -3,20 +3,20 @@
     android:id="@+id/floating_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:minHeight="200dp"
+    android:minHeight="96dp"
     android:elevation="0dp"
     android:outlineProvider="none"
-    android:padding="8dp">
+    android:padding="6dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:background="@drawable/floating_subtitle_bg"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp">
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
         <!-- 顶部条:动作按钮(右) 和 翻译状态(左) -->
         <RelativeLayout
@@ -55,79 +55,46 @@
                 android:orientation="horizontal">
 
                 <!-- 设置 -->
-                <LinearLayout
+                <ImageView
                     android:id="@+id/btn_settings"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:src="@drawable/ic_subtitle_settings"
                     android:clickable="true"
-                    android:focusable="true">
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:src="@drawable/ic_subtitle_settings"
-                        android:contentDescription="@null" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="@string/floating_btn_settings"
-                        android:textColor="#FFFFFF"
-                        android:textSize="11sp" />
-                </LinearLayout>
+                    android:focusable="true"
+                    android:contentDescription="@string/floating_btn_settings" />
 
                 <!-- 展开 -->
-                <LinearLayout
+                <ImageView
                     android:id="@+id/btn_back"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:src="@drawable/ic_subtitle_back"
                     android:clickable="true"
-                    android:focusable="true">
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:src="@drawable/ic_subtitle_back"
-                        android:contentDescription="@null" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="@string/floating_btn_back"
-                        android:textColor="#FFFFFF"
-                        android:textSize="11sp" />
-                </LinearLayout>
+                    android:focusable="true"
+                    android:contentDescription="@string/floating_btn_back" />
 
                 <!-- 关闭 -->
-                <LinearLayout
+                <ImageView
                     android:id="@+id/btn_cancel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:paddingStart="8dp"
+                    android:paddingStart="6dp"
                     android:paddingEnd="0dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:src="@drawable/ic_subtitle_close"
                     android:clickable="true"
-                    android:focusable="true">
-                    <ImageView
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:src="@drawable/ic_subtitle_close"
-                        android:contentDescription="@null" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="@string/floating_btn_cancel"
-                        android:textColor="#FFFFFF"
-                        android:textSize="11sp" />
-                </LinearLayout>
+                    android:focusable="true"
+                    android:contentDescription="@string/floating_btn_cancel" />
             </LinearLayout>
         </RelativeLayout>
 
@@ -139,7 +106,7 @@
             android:layout_weight="1"
             android:layout_marginTop="8dp"
             android:scrollbars="none"
-            android:minHeight="120dp">
+            android:minHeight="48dp">
 
             <LinearLayout
                 android:id="@+id/subtitle_list"

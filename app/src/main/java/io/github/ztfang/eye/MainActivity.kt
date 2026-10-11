@@ -2,7 +2,6 @@ package io.github.ztfang.eye
 
 /** 主 Activity：底部导航（字幕/助手/设置）+ 权限处理 + 悬浮窗开关 + 语言/引擎选择。 */
 import android.Manifest
-import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -53,10 +52,8 @@ import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.AlertDialog
@@ -126,8 +123,6 @@ import io.github.ztfang.eye.ui.theme.EyeTheme
 import io.github.ztfang.eye.util.LocaleHelper
 import io.github.ztfang.eye.util.PermissionHelper
 import io.github.ztfang.eye.viewmodel.SubtitleManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -348,7 +343,6 @@ fun EyeOpenerApp(
             }
             composable(Screen.Assistant.route) { AssistantScreen() }
             composable(Screen.Settings.route) {
-                val context = LocalContext.current
                 // 离线模型失败的技术细节（域名/IP/证书/原始异常），供"翻译模型诊断"查看
                 val transDiagnostics by subtitleManager.translationModelDiagnostics.collectAsState()
                 SettingsScreen(
@@ -357,31 +351,6 @@ fun EyeOpenerApp(
                     onCloudClick = { navController.navigate(Screen.CloudTranslation.route) },
                     onPersonalizationClick = { navController.navigate(Screen.Personalization.route) },
                     onHistoryClick = { navController.navigate(Screen.History.route) },
-                    onFeedbackClick = {
-                        val feedbackIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://v.wjx.cn/vm/Ort5ZBZ.aspx#"))
-                        context.startActivity(feedbackIntent)
-                    },
-                    onShareClick = {
-                        val shareIntent =
-                            Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TITLE, context.getString(R.string.app_name))
-                                putExtra(
-                                    Intent.EXTRA_TEXT,
-                                    context.getString(R.string.share_intro, context.getString(R.string.app_name)) +
-                                        "${context.getString(R.string.app_tagline)}\n" +
-                                        "${context.getString(R.string.share_desc)}\n\n" +
-                                        "${context.getString(
-                                            R.string.share_github,
-                                        )}：https://github.com/zt-Fang/EyeOpener-Translator/releases\n" +
-                                        "${context.getString(R.string.share_lanzou)}" +
-                                        "${context.getString(R.string.share_link)}https://eyeopener.lanzoul.com/b01d72jymf\n" +
-                                        "${context.getString(R.string.share_password)}7856",
-                                )
-                            }
-                        val chooser = Intent.createChooser(shareIntent, context.getString(R.string.share_title))
-                        context.startActivity(chooser)
-                    },
                     translationDiagnostics = transDiagnostics,
                     onClearTranslationDiagnostics = { subtitleManager.clearTranslationModelDiagnostics() },
                 )
@@ -1672,7 +1641,7 @@ fun AssistantScreen() {
 
 // ============================== 设置屏 ==============================
 
-/** 设置页：界面语言/本地模型/API/个性化/分享/反馈/检查更新入口。 */
+/** 设置页：界面语言/本地模型/API/个性化/历史记录/翻译模型诊断入口。 */
 @Composable
 fun SettingsScreen(
     onLocalClick: () -> Unit = {}, // 点击本地模型设置
@@ -1680,195 +1649,15 @@ fun SettingsScreen(
     onCloudClick: () -> Unit = {}, // 点击云端翻译设置
     onPersonalizationClick: () -> Unit = {}, // 点击个性化设置
     onHistoryClick: () -> Unit = {}, // 点击历史记录
-    onFeedbackClick: () -> Unit = {}, // 点击意见反馈
-    onShareClick: () -> Unit = {}, // 点击分享给朋友
     translationDiagnostics: String? = null, // 最近一次离线模型失败的技术细节
     onClearTranslationDiagnostics: () -> Unit = {},
     settingsViewModel: io.github.ztfang.eye.viewmodel.SettingsViewModel = hiltViewModel(),
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    // 检查更新状态：null=未检查, "checking"=检查中, "latest"=已最新, "new=版本号"=有新版, "error"=失败
-    var updateState by remember { mutableStateOf<String?>(null) }
-    var updateUrl by remember { mutableStateOf<String?>(null) }
-    var latestVersion by remember { mutableStateOf<String?>(null) }
-    // Release 更新说明（GitHub release body）
-    var releaseNotes by remember { mutableStateOf<String?>(null) }
-    // 更新弹窗是否显示
-    var showUpdateDialog by remember { mutableStateOf(false) }
-    // 下载状态：null=未下载, "downloading"=下载中(进度%), "downloaded"=已下载待安装, "dl_error"=下载失败
-    var downloadState by remember { mutableStateOf<String?>(null) }
-    var downloadId by remember { mutableStateOf<Long?>(null) }
     // 界面语言选择弹窗
     var showLanguagePicker by remember { mutableStateOf(false) }
     // 翻译模型诊断弹窗
     var showTransDiagnostics by remember { mutableStateOf(false) }
     val currentLanguage by settingsViewModel.interfaceLanguage.collectAsState(initial = "zh")
-
-    /**
-     * 语义化版本比较
-     * @return remote 比 current 新返回 true
-     */
-    fun isNewerVersion(
-        current: String,
-        remote: String,
-    ): Boolean {
-        val cur = current.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
-        val rem = remote.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
-        val maxLen = maxOf(cur.size, rem.size)
-        for (i in 0 until maxLen) {
-            val c = cur.getOrElse(i) { 0 }
-            val r = rem.getOrElse(i) { 0 }
-            if (r > c) return true
-            if (r < c) return false
-        }
-        return false
-    }
-
-    /** 异步检查 GitHub 最新 release */
-    fun doCheckUpdate() {
-        updateState = "checking"
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                val url = java.net.URL("https://api.github.com/repos/zt-Fang/EyeOpener-Translator/releases/latest")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 8000
-                conn.readTimeout = 8000
-                conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
-                val response = conn.inputStream.bufferedReader().use { it.readText() }
-                val json = org.json.JSONObject(response)
-                val latest = json.optString("tag_name", json.optString("name", ""))
-                // 提取 release 更新说明（body 字段）
-                val notes = json.optString("body", "").ifBlank { context.getString(R.string.update_no_notes) }
-                val apkAsset =
-                    json.getJSONArray("assets").let { arr ->
-                        (0 until arr.length()).firstNotNullOfOrNull { i ->
-                            val obj = arr.getJSONObject(i)
-                            if (obj.getString("name").endsWith(".apk")) obj.getString("browser_download_url") else null
-                        }
-                    } ?: json.getString("html_url")
-                // 从 BuildConfig 读取当前版本号，替换硬编码
-                val current = BuildConfig.VERSION_NAME
-                if (isNewerVersion(current, latest)) {
-                    updateState = "new=$latest"
-                    latestVersion = latest
-                    releaseNotes = notes
-                    updateUrl = apkAsset
-                    // 有新版本 → 弹窗询问
-                    showUpdateDialog = true
-                } else {
-                    updateState = "latest"
-                    // 已是最新 → Toast 提示
-                    coroutineScope.launch(Dispatchers.Main) {
-                        Toast.makeText(context, context.getString(R.string.update_already_latest), Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                updateState = "error"
-                coroutineScope.launch(Dispatchers.Main) {
-                    Toast.makeText(context, context.getString(R.string.update_check_failed), Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    /** 应用内下载 APK，完成后调起安装 */
-    fun startDownloadApk() {
-        val apkUrl = updateUrl ?: return
-        downloadState = "downloading=0"
-        // 在 IO 线程执行下载和进度查询
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                val request =
-                    DownloadManager.Request(android.net.Uri.parse(apkUrl)).apply {
-                        setTitle(context.getString(R.string.update_notification_title))
-                        setDescription(context.getString(R.string.update_notification_desc))
-                        // 下载到应用专属目录，无需存储权限
-                        setDestinationInExternalFilesDir(
-                            context,
-                            Environment.DIRECTORY_DOWNLOADS,
-                            "EyeOpener-update.apk",
-                        )
-                        setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
-                        setAllowedOverMetered(true)
-                        setAllowedOverRoaming(true)
-                    }
-                val id = dm.enqueue(request)
-                downloadId = id
-
-                // 轮询查询下载进度
-                var lastProgress = -1
-                while (true) {
-                    val query = DownloadManager.Query().setFilterById(id)
-                    val cursor = dm.query(query)
-                    if (cursor != null && cursor.moveToFirst()) {
-                        val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                        val total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-                        val downloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                        cursor.close()
-
-                        when (status) {
-                            DownloadManager.STATUS_SUCCESSFUL -> {
-                                downloadState = "downloaded"
-                                break
-                            }
-                            DownloadManager.STATUS_FAILED -> {
-                                downloadState = "dl_error"
-                                break
-                            }
-                            DownloadManager.STATUS_RUNNING -> {
-                                val progress = if (total > 0) (downloaded * 100 / total).toInt() else 0
-                                if (progress != lastProgress) {
-                                    downloadState = "downloading=$progress"
-                                    lastProgress = progress
-                                }
-                            }
-                        }
-                    } else {
-                        cursor?.close()
-                    }
-                    delay(500) // 每 500ms 查询一次进度
-                }
-            } catch (e: Exception) {
-                downloadState = "dl_error"
-            }
-        }
-    }
-
-    /** 调起系统安装器安装已下载的 APK */
-    fun installApk() {
-        try {
-            val apkFile =
-                java.io.File(
-                    context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-                    "EyeOpener-update.apk",
-                )
-            if (!apkFile.exists()) {
-                downloadState = "dl_error"
-                return
-            }
-            val uri =
-                androidx.core.content.FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    apkFile,
-                )
-            val intent =
-                Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, "application/vnd.android.package-archive")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            // 安装失败，回退到浏览器下载
-            val url = updateUrl ?: return
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
-            context.startActivity(intent)
-        }
-    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // 页面标题
@@ -1938,76 +1727,6 @@ fun SettingsScreen(
                         label = stringResource(R.string.settings_row_trans_diagnostics),
                         accent = AccentTone.Mint,
                         onClick = { showTransDiagnostics = true },
-                    )
-                }
-            }
-
-            // 第二组设置卡片
-            item {
-                SettingsCard(
-                    modifier = Modifier.padding(horizontal = Dimens.ScreenPaddingH),
-                ) {
-                    SettingsRow(
-                        icon = Icons.Filled.Share,
-                        label = stringResource(R.string.settings_row_share),
-                        accent = AccentTone.Sky,
-                        onClick = onShareClick,
-                    )
-                    SettingsRow(
-                        icon = Icons.Filled.Star,
-                        label = stringResource(R.string.settings_row_feedback),
-                        accent = AccentTone.Amber,
-                        onClick = onFeedbackClick,
-                    )
-                    val updateValue =
-                        when {
-                            downloadState?.startsWith("downloading=") == true -> {
-                                val pct = downloadState?.removePrefix("downloading=") ?: "0"
-                                context.getString(R.string.update_downloading, pct.toIntOrNull() ?: 0)
-                            }
-                            downloadState == "downloaded" -> context.getString(R.string.update_tap_install)
-                            downloadState == "dl_error" -> context.getString(R.string.update_download_failed_retry)
-                            updateState == "checking" -> context.getString(R.string.update_checking)
-                            updateState == "latest" -> context.getString(R.string.update_latest)
-                            updateState == "error" -> context.getString(R.string.update_check_error)
-                            updateState?.startsWith("new=") == true ->
-                                context.getString(R.string.update_new_version, updateState?.removePrefix("new="))
-                            else -> ""
-                        }
-                    val updateValueColor =
-                        when {
-                            downloadState == "downloaded" -> Color(0xFF2E7D32)
-                            downloadState == "dl_error" -> MaterialTheme.colorScheme.error
-                            updateState == "latest" -> Color(0xFF2E7D32)
-                            updateState == "error" -> MaterialTheme.colorScheme.error
-                            updateState?.startsWith("new=") == true -> MaterialTheme.colorScheme.primary
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    SettingsRow(
-                        icon = Icons.Filled.Refresh,
-                        label = stringResource(R.string.settings_row_check_update),
-                        accent = AccentTone.Coral,
-                        value = updateValue,
-                        valueColor = updateValueColor,
-                        onClick = {
-                            when {
-                                // 下载中：不响应点击
-                                downloadState?.startsWith("downloading=") == true -> {}
-                                // 已下载：点击安装
-                                downloadState == "downloaded" -> installApk()
-                                // 下载失败：重新下载
-                                downloadState == "dl_error" -> startDownloadApk()
-                                // 检查中：不响应
-                                updateState == "checking" -> {}
-                                // 已有新版本（弹窗被关了）：重新弹窗
-                                updateState?.startsWith("new=") == true -> showUpdateDialog = true
-                                // 其他：触发检查
-                                else -> {
-                                    downloadState = null
-                                    doCheckUpdate()
-                                }
-                            }
-                        },
                     )
                 }
             }
@@ -2105,83 +1824,6 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = { showLanguagePicker = false }) {
                     Text(stringResource(android.R.string.cancel))
-                }
-            },
-        )
-    }
-
-    // ========== 更新弹窗：显示新版本号 + 更新说明 + 更新/取消 ==========
-    if (showUpdateDialog) {
-        AlertDialog(
-            onDismissRequest = { showUpdateDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Refresh,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.update_dialog_title),
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // 版本号
-                    Text(
-                        text = stringResource(R.string.update_dialog_latest, latestVersion ?: ""),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    // 当前版本
-                    Text(
-                        text = stringResource(R.string.update_dialog_current, BuildConfig.VERSION_NAME),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    // 更新说明标题
-                    Text(
-                        text = stringResource(R.string.update_dialog_notes_label),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    // 更新说明正文（可滚动）
-                    val notes = releaseNotes ?: stringResource(R.string.update_no_notes)
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 200.dp)
-                                .verticalScroll(rememberScrollState()),
-                    ) {
-                        Text(
-                            text = notes,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = MaterialTheme.typography.bodySmall.lineHeight * 1.4,
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showUpdateDialog = false
-                        startDownloadApk()
-                    },
-                ) {
-                    Text(stringResource(R.string.update_action_update_now))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showUpdateDialog = false }) {
-                    Text("稍后再说")
                 }
             },
         )

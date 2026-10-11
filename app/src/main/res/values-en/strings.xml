@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">EyeOpener</string>
+    <string name="app_name">翻译大师</string>
     <string name="app_tagline">Real-time Translation</string>
 
     <!-- Bottom Navigation -->
@@ -81,9 +81,6 @@
     <string name="settings_row_api">AI Translation</string>
     <string name="settings_row_cloud">Cloud Translation</string>
     <string name="settings_row_history">History</string>
-    <string name="settings_row_share">Share</string>
-    <string name="settings_row_feedback">Feedback</string>
-    <string name="settings_row_check_update">Check Update</string>
 
     <!-- Cloud Translation Settings -->
     <string name="cloud_title">Cloud Translation</string>
@@ -218,13 +215,6 @@
     <string name="api_key_already_configured">API Key already configured for current provider, editing will overwrite</string>
 
     <!-- Share -->
-    <string name="share_title">Share with friends</string>
-    <string name="share_intro">Try %1$s —</string>
-    <string name="share_desc">Real-time translation subtitles with multilingual speech recognition for effortless cross-language communication.</string>
-    <string name="share_github">GitHub download</string>
-    <string name="share_lanzou">Lanzou download</string>
-    <string name="share_link">Link: </string>
-    <string name="share_password">Password: </string>
 
     <!-- Tips / Toast -->
     <string name="tip_mic_permission_required">Microphone permission required</string>
@@ -286,25 +276,6 @@
     <string name="permission_rationale_record_audio">Microphone permission is required for real-time speech recognition and subtitle generation</string>
     <string name="permission_rationale_post_notifications">Notification permission is required to show subtitle status in the status bar (Android 13+)</string>
     <string name="permission_rationale_generic">Authorization required</string>
-
-    <!-- App Update -->
-    <string name="update_no_notes">No release notes available</string>
-    <string name="update_already_latest">You\'re already on the latest version</string>
-    <string name="update_check_failed">Update check failed. Please check your network.</string>
-    <string name="update_notification_title">EyeOpener Update</string>
-    <string name="update_notification_desc">Downloading new version...</string>
-    <string name="update_downloading">Downloading %1$d%%</string>
-    <string name="update_tap_install">Tap to install</string>
-    <string name="update_download_failed_retry">Download failed, retry</string>
-    <string name="update_checking">Checking...</string>
-    <string name="update_latest">✓ Up to date</string>
-    <string name="update_check_error">Check failed</string>
-    <string name="update_new_version">New version %1$s</string>
-    <string name="update_dialog_title">New Version Available</string>
-    <string name="update_dialog_latest">Latest: %1$s</string>
-    <string name="update_dialog_current">Current: v%1$s</string>
-    <string name="update_dialog_notes_label">What\'s new:</string>
-    <string name="update_action_update_now">Update Now</string>
 
     <!-- App Language -->
     <string name="lang_zh">简体中文</string>

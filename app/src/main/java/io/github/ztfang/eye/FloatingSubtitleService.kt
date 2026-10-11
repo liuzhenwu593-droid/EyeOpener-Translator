@@ -71,11 +71,11 @@ class FloatingSubtitleService : Service() {
                 resources.displayMetrics.heightPixels
             }
 
-    // 最小尺寸:宽 240dp / 高 200dp(顶部条 + 字幕区 + padding)
+    // 最小尺寸:宽 140dp / 高 120dp(顶部条 + 字幕区 + padding)
     private val minWidthPx: Int // 窗口最小宽度（像素）
-        get() = (240 * resources.displayMetrics.density).toInt()
+        get() = (140 * resources.displayMetrics.density).toInt()
     private val minHeightPx: Int // 窗口最小高度（像素）
-        get() = (200 * resources.displayMetrics.density).toInt()
+        get() = (120 * resources.displayMetrics.density).toInt()
 
     // 初始尺寸:宽度占屏幕宽度×90%,高度占屏幕高度×20%
     private val defaultWidthPx: Int // 窗口默认宽度（像素），限制在最小和最大尺寸之间
@@ -483,7 +483,7 @@ class FloatingSubtitleService : Service() {
         return NotificationCompat
             .Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle("EyeOpener 字幕运行中")
+            .setContentTitle("翻译大师 字幕运行中")
             .setContentText("点击返回应用")
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
