@@ -163,4 +163,13 @@
             android:textSize="11sp"
             android:visibility="gone" />
     </LinearLayout>
+
+    <!-- 右下角缩放柄:根 FrameLayout 的直接子 view,浮于内容之上,48dp 触摸区 -->
+    <View
+        android:id="@+id/resize_handle"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom|end"
+        android:background="@drawable/resize_handle_bg"
+        android:contentDescription="@null" />
 </FrameLayout>

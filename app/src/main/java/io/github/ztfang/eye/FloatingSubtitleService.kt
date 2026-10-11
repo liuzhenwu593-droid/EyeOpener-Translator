@@ -355,6 +355,7 @@ class FloatingSubtitleService : Service() {
 
         // 设置触摸事件处理和按钮点击事件
         setupOverlayDrag()
+        setupResizeHandle()
         setupCancelButton()
         setupSettingsButton()
         setupBackButton()
@@ -651,23 +652,18 @@ class FloatingSubtitleService : Service() {
         layoutParams.y = layoutParams.y.coerceIn(0, max(0, currentMaxHeight - h))
     }
 
-    /** 设置触摸事件：topActions 区不拦截，右下角 24dp 触发缩放，其他区域拖拽。 */
+    /** 设置触摸事件：根视图负责拖拽移动；右下角有独立的缩放柄 view 负责缩放。 */
     private fun setupOverlayDrag() {
         val rootView = floatingView ?: return
-        val resizeSize = (24 * resources.displayMetrics.density).toInt() // 缩放触发区域大小（24dp）
-        // 拖拽触发阈值：移动超过此距离才进入拖拽/缩放，避免轻点被误判为拖拽
+        // 拖拽触发阈值：移动超过此距离才进入拖拽，避免轻点被误判为拖拽
         val dragThreshold = (8 * resources.displayMetrics.density).toInt()
 
-        // 拖拽/缩放状态变量
+        // 拖拽状态变量
         var startX = 0f // 触摸起始点的原始 X 坐标
         var startY = 0f // 触摸起始点的原始 Y 坐标
         var startXparam = 0 // 拖拽开始时窗口的 X 坐标
         var startYparam = 0 // 拖拽开始时窗口的 Y 坐标
-        var startWidth = 0 // 缩放开始时窗口的宽度
-        var startHeight = 0 // 缩放开始时窗口的高度
         var isDragging = false // 是否正在拖拽
-        var isResizing = false // 是否正在缩放
-        var mayResize = false // DOWN 时在缩放区域，待 MOVE 确认
 
         rootView.setOnTouchListener { _, event ->
             when (event.actionMasked) {
@@ -677,68 +673,95 @@ class FloatingSubtitleService : Service() {
                     startX = event.rawX
                     startY = event.rawY
                     isDragging = false
-                    isResizing = false
-                    // 判断是否在右下角缩放区域
-                    val w = rootView.width
-                    val h = rootView.height
-                    mayResize = w > 0 && h > 0 && event.x >= w - resizeSize && event.y >= h - resizeSize
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     if (!isAttached) {
                         isDragging = false
-                        isResizing = false
                         return@setOnTouchListener true
                     }
                     val dx = event.rawX - startX
                     val dy = event.rawY - startY
-                    // 移动超过阈值才进入拖拽/缩放模式
-                    if (!isDragging && !isResizing) {
+                    // 移动超过阈值才进入拖拽模式
+                    if (!isDragging) {
                         if (dx * dx + dy * dy > dragThreshold * dragThreshold) {
-                            if (mayResize) {
-                                isResizing = true
-                                startWidth = layoutParams.width
-                                startHeight = layoutParams.height
-                            } else {
-                                isDragging = true
-                                startXparam = layoutParams.x
-                                startYparam = layoutParams.y
-                            }
+                            isDragging = true
+                            startXparam = layoutParams.x
+                            startYparam = layoutParams.y
                         } else {
                             return@setOnTouchListener true // 还没超过阈值，继续等
                         }
                     }
-                    if (isResizing) {
-                        val newWidth = (startWidth + dx).toInt()
-                        val newHeight = (startHeight + dy).toInt()
-                        layoutParams.width = newWidth.coerceIn(minWidthPx, maxWidthPx)
-                        layoutParams.height = newHeight.coerceIn(minHeightPx, maxHeightPx)
-                        clampToScreen()
-                        updateViewLayoutSafely()
-                    } else if (isDragging) {
-                        layoutParams.x = startXparam + dx.toInt()
-                        layoutParams.y = startYparam + dy.toInt()
+                    layoutParams.x = startXparam + dx.toInt()
+                    layoutParams.y = startYparam + dy.toInt()
+                    clampToScreen()
+                    updateViewLayoutSafely()
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    Log.d(
+                        TAG,
+                        "ACTION_${event.actionMasked}: dragging=$isDragging, " +
+                            "x=${layoutParams.x}, y=${layoutParams.y}, w=${layoutParams.width}, h=${layoutParams.height}",
+                    )
+                    if (isDragging && isAttached) saveOverlayPosition()
+                    val wasInteracting = isDragging
+                    isDragging = false
+                    // 轻点（未拖拽）不拦截事件，让子 view（如按钮）能收到点击
+                    if (wasInteracting) true else false
+                }
+                else -> false
+            }
+        }
+    }
+
+    /**
+     * 右下角缩放柄的触摸处理：独立于根视图的拖拽监听。
+     *
+     * 为什么不能复用根视图的角落命中测试：字幕 ScrollView 会消费落在其区域内的
+     * 全部触摸事件，而 ViewGroup 的 OnTouchListener 只在没有任何子 view 消费事件
+     * 时才会触发，导致旧的"右下角 24dp 角落缩放"手势永远到不了根监听器。
+     * 缩放柄是盖在最上层的独立 view，它的触摸事件优先被自己消费，不受 ScrollView 影响。
+     */
+    private fun setupResizeHandle() {
+        val handle = floatingView?.findViewById<View>(R.id.resize_handle) ?: return
+        // 缩放触发阈值：移动超过此距离才进入缩放，避免轻点抖动
+        val touchSlop = (8 * resources.displayMetrics.density).toInt()
+
+        var startRawX = 0f // 缩放起始点的原始 X 坐标
+        var startRawY = 0f // 缩放起始点的原始 Y 坐标
+        var startWidth = 0 // 缩放开始时窗口的宽度
+        var startHeight = 0 // 缩放开始时窗口的高度
+        var resizing = false // 是否正在缩放
+
+        handle.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startRawX = event.rawX
+                    startRawY = event.rawY
+                    startWidth = layoutParams.width
+                    startHeight = layoutParams.height
+                    resizing = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - startRawX
+                    val dy = event.rawY - startRawY
+                    if (!resizing && dx * dx + dy * dy > touchSlop * touchSlop) {
+                        resizing = true
+                    }
+                    if (resizing && isAttached) {
+                        layoutParams.width = (startWidth + dx).toInt().coerceIn(minWidthPx, maxWidthPx)
+                        layoutParams.height = (startHeight + dy).toInt().coerceIn(minHeightPx, maxHeightPx)
                         clampToScreen()
                         updateViewLayoutSafely()
                     }
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    Log.d(
-                        TAG,
-                        "ACTION_${event.actionMasked}: dragging=$isDragging, resizing=$isResizing, " +
-                            "x=${layoutParams.x}, y=${layoutParams.y}, w=${layoutParams.width}, h=${layoutParams.height}",
-                    )
-                    if (isAttached) {
-                        if (isDragging) saveOverlayPosition()
-                        if (isResizing) saveOverlaySize()
-                    }
-                    val wasInteracting = isDragging || isResizing
-                    isDragging = false
-                    isResizing = false
-                    mayResize = false
-                    // 轻点（未拖拽/缩放）不拦截事件，让子 view（如按钮）能收到点击
-                    if (wasInteracting) true else false
+                    if (resizing && isAttached) saveOverlaySize()
+                    resizing = false
+                    true
                 }
                 else -> false
             }
